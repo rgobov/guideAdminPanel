@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Управление точками интереса и медиа</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@latest/babel.min.js"></script>
+</head>
+<body>
+<div id="root" class="min-h-screen bg-gray-100"></div>
+
+<script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Форма логина
+    const LoginForm = ({ onLogin }) => {
+        const [username, setUsername] = useState('');
+        const [password, setPassword] = useState('');
+
+        const handleLogin = () => {
+            axios.post('/api/auth/login', { username, password })
+                .then(response => {
+                    localStorage.setItem('token', response.data);
+                    onLogin(response.data);
+                })
+                .catch(error => alert('Ошибка входа: ' + error.message));
+        };
+
+        return (
+            <div className="p-4 bg-white shadow-md rounded-lg max-w-md mx-auto mt-10">
+                <h2 className="text-xl font-bold mb-4">Вход в админпанель</h2>
+                <input
+                    type="text"
+                    placeholder="Имя пользователя"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full p-2 mb-2 border rounded"
+                />
+                <input
+                    type="password"
+                    placeholder="Пароль"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full p-2 mb-2 border rounded"
+                />
+                <button
+                    onClick={handleLogin}
+                    className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 w-full"
+                >
+                    Войти
+                </button>
+            </div>
+        );
+    };
+
+    // Форма для создания точки интереса
+    const POIForm = ({ routes, onSave, token }) => {
+        const [title, setTitle] = useState('');
+        const [description, setDescription] = useState('');
+        const [routeId, setRouteId] = useState('');
+        const [latitude, setLatitude] = useState('');
+        const [longitude, setLongitude] = useState('');
+        const [order, setOrder] = useState(1);
+
+        const handleSubmit = () => {
+            if (!title || !routeId || !latitude || !longitude) {
+                alert('Пожалуйста, заполните все обязательные поля');
+                return;
+            }
+            const poiData = {
+                title,
+                description,
+                route: { id: parseInt(routeId) },
+                location: { type: 'Point', coordinates: [parseFloat(longitude), parseFloat(latitude)] },
+                order
+            };
+            axios.post('/api/poi', poiData, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+                .then(response => {
+                    alert('Точка интереса успешно создана!');
+                    onSave();
+                    setTitle('');
+                    setDescription('');
+                    setRouteId('');
+                    setLatitude('');
+                    setLongitude('');
+                    setOrder(1);
+                })
+                .catch(error => console.error('Ошибка при создании точки интереса:', error));
+        };
+
+        return (
+            <div className="p-4 bg-white shadow-md rounded-lg mb-6">
+                <h2 className="text-xl font-bold mb-4">Создать точку интереса</h2>
+                <input
+                    type="text"
+                    placeholder="Название"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full p-2 mb-2 border rounded"
+                />
+                <textarea
+                    placeholder="Описание"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="w-full p-2 mb-2 border rounded"
+                />
+                <select
+                    value={routeId}
+                    onChange={(e) => setRouteId(e.target.value)}
+                    className="w-full p-2 mb-2 border rounded"
+                >
+                    <option value="">Выберите маршрут</option>
+                    {routes.map(route => (
+                        <option key={route.id} value={route.id}>{route.title}</option>
+                    ))}
+                </select>
+                <input
+                    type="number"
+                    placeholder="Широта"
+                    value={latitude}
+                    onChange={(e) => setLatitude(e.target.value)}
+                    className="w-full p-2 mb-2 border rounded"
+                />
+                <input
+                    type="number"
+                    placeholder="Долгота"
+                    value={longitude}
+                    onChange={(e) => setLongitude(e.target.value)}
+                    className="w-full p-2 mb-2 border rounded"
+                />
+                <input
+                    type="number"
+                    placeholder="Порядок в маршруте"
+                    value={order}
+                    onChange={(e) => setOrder(parseInt(e.target.value))}
+                    className="w-full p-2 mb-2 border rounded"
+                />
+                <button
+                    onClick={handleSubmit}
+                    className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+                >
+                    Сохранить
+                </button>
+            </div>
+        );
+    };
+
+    // Форма для загрузки медиафайла
+    const MediaUploadForm = ({ pois, onSave, token }) => {
+        const [file, setFile] = useState(null);
+        const [poiId, setPoiId] = useState('');
+        const [type, setType] = useState('audio');
+
+        const handleFileChange = (e) => setFile(e.target.files[0]);
+
+        const handleSubmit = () => {
+            if (!file || !poiId) {
+                alert('Пожалуйста, выберите файл и точку интереса');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('poiId', poiId);
+            formData.append('type', type);
+
+            axios.post('/api/media/upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    Authorization: `Bearer ${token}`
+                }
+            })
+                .then(response => {
+                    alert('Медиафайл успешно загружен!');
+                    onSave();
+                    setFile(null);
+                    setPoiId('');
+                    setType('audio');
+                })
+                .catch(error => console.error('Ошибка при загрузке медиа:', error));
+        };
+
+        return (
+            <div className="p-4 bg-white shadow-md rounded-lg">
+                <h2 className="text-xl font-bold mb-4">Загрузить медиафайл</h2>
+                <select
+                    value={poiId}
+                    onChange={(e) => setPoiId(e.target.value)}
+                    className="w-full p-2 mb-2 border rounded"
+                >
+                    <option value="">Выберите точку интереса</option>
+                    {pois.map(poi => (
+                        <option key={poi.id} value={poi.id}>{poi.title}</option>
+                    ))}
+                </select>
+                <select
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
+                    className="w-full p-2 mb-2 border rounded"
+                >
+                    <option value="audio">Аудиогид</option>
+                    <option value="ar_texture">AR текстура</option>
+                    <option value="image">Изображение</option>
+                    <option value="3d_model">3D модель</option>
+                </select>
+                <input
+                    type="file"
+                    accept="audio/*,image/*,.obj"
+                    onChange={handleFileChange}
+                    className="w-full p-2 mb-2"
+                />
+                <button
+                    onClick={handleSubmit}
+                    className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+                >
+                    Загрузить
+                </button>
+            </div>
+        );
+    };
+
+    // Главный компонент приложения
+    const App = () => {
+        const [token, setToken] = useState(localStorage.getItem('token') || null);
+        const [routes, setRoutes] = useState([]);
+        const [pois, setPois] = useState([]);
+
+        useEffect(() => {
+            if (token) {
+                axios.get('/api/routes', {
+                    headers: { Authorization: `Bearer ${token}` }
+                })
+                    .then(response => setRoutes(response.data))
+                    .catch(error => console.error('Ошибка при загрузке маршрутов:', error));
+
+                axios.get('/api/poi', {
+                    headers: { Authorization: `Bearer ${token}` }
+                })
+                    .then(response => setPois(response.data))
+                    .catch(error => console.error('Ошибка при загрузке точек интереса:', error));
+            }
+        }, [token]);
+
+        const refreshData = () => {
+            if (token) {
+                axios.get('/api/routes', {
+                    headers: { Authorization: `Bearer ${token}` }
+                })
+                    .then(response => setRoutes(response.data));
+
+                axios.get('/api/poi', {
+                    headers: { Authorization: `Bearer ${token}` }
+                })
+                    .then(response => setPois(response.data));
+            }
+        };
+
+        const handleLogin = (newToken) => {
+            setToken(newToken);
+            refreshData();
+        };
+
+        if (!token) {
+            return <LoginForm onLogin={handleLogin} />;
+        }
+
+        return (
+            <div className="container mx-auto p-4">
+                <h1 className="text-3xl font-bold mb-6">Панель администратора</h1>
+                <button
+                    onClick={() => {
+                        localStorage.removeItem('token');
+                        setToken(null);
+                    }}
+                    className="mb-4 bg-red-500 text-white p-2 rounded hover:bg-red-600"
+                >
+                    Выйти
+                </button>
+                <POIForm routes={routes} onSave={refreshData} token={token} />
+                <MediaUploadForm pois={pois} onSave={refreshData} token={token} />
+            </div>
+        );
+    };
+
+    // Рендеринг приложения
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+</script>
+</body>
+</html>
