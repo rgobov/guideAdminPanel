@@ -1,7 +1,6 @@
 package gobov.roma.adminpanel.controllers;
 
-import gobov.roma.mvpguide.model.Media;
-import gobov.roma.mvpguide.services.MediaService;
+import gobov.roma.adminpanel.model.Media;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,7 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/media")
 @RequiredArgsConstructor
 public class MediaController {
-    private final MediaService mediaService;
+    private final gobov.roma.adminpanel.services.MediaService mediaService;
 
     @PostMapping("/upload")
     public ResponseEntity<Media> uploadMedia(

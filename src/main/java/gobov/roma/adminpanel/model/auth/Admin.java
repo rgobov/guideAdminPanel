@@ -1,4 +1,4 @@
-package gobov.roma.adminpanel.model;
+package gobov.roma.adminpanel.model.auth;
 
 import jakarta.persistence.*;
 import lombok.Data;

@@ -1,6 +1,6 @@
-package gobov.roma.adminpanel.repository;
+package gobov.roma.adminpanel.repository.auth;
 
-import gobov.roma.adminpanel.model.Admin;
+import gobov.roma.adminpanel.model.auth.Admin;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 

@@ -2,8 +2,8 @@ package gobov.roma.adminpanel.services;
 
 import gobov.roma.adminpanel.model.Media;
 import gobov.roma.adminpanel.model.PointOfInterest;
-import gobov.roma.adminpanel.repository.MediaRepository;
-import gobov.roma.adminpanel.repository.PointOfInterestRepository;
+import gobov.roma.adminpanel.repository.media.MediaRepository;
+import gobov.roma.adminpanel.repository.point.PointOfInterestRepository;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import org.springframework.stereotype.Service;

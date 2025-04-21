@@ -7,7 +7,6 @@ import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.boot.orm.jpa.EntityManagerFactoryBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
@@ -21,36 +20,26 @@ import java.util.Map;
 @Configuration
 @EnableTransactionManagement
 @EnableJpaRepositories(
-        basePackages = {
-                "gobov.roma.adminpanel.repository.point",
-                "gobov.roma.adminpanel.repository.excursion",
-                "gobov.roma.adminpanel.repository.media",
-                "gobov.roma.adminpanel.repository.emergency",
-                "gobov.roma.adminpanel.repository.favorite",
-                "gobov.roma.adminpanel.repository.users"
-
-        },
-        entityManagerFactoryRef = "mainEntityManagerFactory",
-        transactionManagerRef = "mainTransactionManager"
+        basePackages = "gobov.roma.adminpanel.repository.auth",
+        entityManagerFactoryRef = "authEntityManagerFactory",
+        transactionManagerRef = "authTransactionManager"
 )
-public class DataSourceConfig {
+public class AuthDataSourceConfig {
 
-    @Primary
-    @Bean(name = "mainDataSource")
-    @ConfigurationProperties(prefix = "spring.datasource")
-    public DataSource mainDataSource() {
+    @Bean(name = "authDataSource")
+    @ConfigurationProperties(prefix = "spring.auth-datasource")
+    public DataSource authDataSource() {
         return DataSourceBuilder.create().build();
     }
 
-    @Primary
-    @Bean(name = "mainEntityManagerFactory")
-    public LocalContainerEntityManagerFactoryBean mainEntityManagerFactory(
-            @Qualifier("mainDataSource") DataSource dataSource,
+    @Bean(name = "authEntityManagerFactory")
+    public LocalContainerEntityManagerFactoryBean authEntityManagerFactory(
+            @Qualifier("authDataSource") DataSource dataSource,
             EntityManagerFactoryBuilder builder) {
         return builder
                 .dataSource(dataSource)
-                .packages("gobov.roma.adminpanel.model")
-                .persistenceUnit("main")
+                .packages("gobov.roma.adminpanel.model.auth")
+                .persistenceUnit("auth")
                 .properties(jpaProperties())
                 .build();
     }
@@ -62,10 +51,9 @@ public class DataSourceConfig {
         return props;
     }
 
-    @Primary
-    @Bean(name = "mainTransactionManager")
-    public PlatformTransactionManager mainTransactionManager(
-            @Qualifier("mainEntityManagerFactory") EntityManagerFactory entityManagerFactory) {
+    @Bean(name = "authTransactionManager")
+    public PlatformTransactionManager authTransactionManager(
+            @Qualifier("authEntityManagerFactory") EntityManagerFactory entityManagerFactory) {
         return new JpaTransactionManager(entityManagerFactory);
     }
 }

@@ -21,10 +21,6 @@ public class PointOfInterest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "route_id", nullable = false)
-    private Route route;
-
     @Column(nullable = false)
     private String title;
 
@@ -34,13 +30,16 @@ public class PointOfInterest {
     @Column(nullable = false, columnDefinition = "geometry(Point, 4326)")
     private Point location; // Для хранения latitude и longitude
 
+    @Column(name = "region")
+    private String region; //поле для региона
+
     @Column(name = "audio_url")
     private String audioUrl;
 
     @Column(name = "image_url")
     private String imageUrl;
 
-    @Column(name = "order_in_route", nullable = false)
+    @Column(name = "order_in_route")
     private Integer order;
 
     @Column(name = "beacon_id")

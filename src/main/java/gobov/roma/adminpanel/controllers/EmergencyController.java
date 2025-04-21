@@ -1,7 +1,7 @@
 package gobov.roma.adminpanel.controllers;
 
-import gobov.roma.mvpguide.dto.EmergencyInfoDTO;
-import gobov.roma.mvpguide.services.EmergencyInfoService;
+import gobov.roma.adminpanel.dto.EmergencyInfoDTO;
+import gobov.roma.adminpanel.services.EmergencyInfoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

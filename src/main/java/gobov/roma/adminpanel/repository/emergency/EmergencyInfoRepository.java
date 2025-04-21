@@ -1,9 +1,10 @@
-package gobov.roma.adminpanel.repository;
+package gobov.roma.adminpanel.repository.emergency;
 
 import gobov.roma.adminpanel.model.EmergencyInfo;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
-@EnableJpaRepositories(entityManagerFactoryRef = "mainEntityManagerFactory")
+import java.util.Optional;
+
 public interface EmergencyInfoRepository extends JpaRepository<EmergencyInfo, Long> {
+    Optional<EmergencyInfo> findByCity(String city);
 }

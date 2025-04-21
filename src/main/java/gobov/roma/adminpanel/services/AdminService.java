@@ -1,9 +1,10 @@
 package gobov.roma.adminpanel.services;
 
 import gobov.roma.adminpanel.dto.AdminRegistrationDTO;
-import gobov.roma.adminpanel.model.Admin;
-import gobov.roma.adminpanel.repository.AdminRepository;
-import org.springframework.security.core.authorities.SimpleGrantedAuthority;
+import gobov.roma.adminpanel.model.auth.Admin;
+import gobov.roma.adminpanel.repository.auth.AdminRepository;
+import jakarta.annotation.PostConstruct;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -55,5 +56,25 @@ public class AdminService implements UserDetailsService {
                 .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
         admin.setLastLogin(LocalDateTime.now());
         return adminRepository.save(admin);
+    }
+
+    @PostConstruct
+    public void initAdminUser() {
+        String adminUsername = "admin";
+        String adminEmail = "admin@example.com";
+        String adminPassword = "admin123"; // Пароль будет зашифрован
+
+        // Проверяем, существует ли администратор с именем "admin"
+        if (adminRepository.findByUsername(adminUsername).isEmpty()) {
+            AdminRegistrationDTO adminDto = new AdminRegistrationDTO();
+            adminDto.setUsername(adminUsername);
+            adminDto.setEmail(adminEmail);
+            adminDto.setPassword(adminPassword);
+
+            registerAdmin(adminDto);
+            System.out.println("Admin user created with username: " + adminUsername);
+        } else {
+            System.out.println("Admin user already exists with username: " + adminUsername);
+        }
     }
 }

@@ -1,7 +1,8 @@
-package gobov.roma.adminpanel.service;
+package gobov.roma.adminpanel.services;
 
+import gobov.roma.adminpanel.dto.EmergencyInfoDTO;
 import gobov.roma.adminpanel.model.EmergencyInfo;
-import gobov.roma.adminpanel.repository.EmergencyInfoRepository;
+import gobov.roma.adminpanel.repository.emergency.EmergencyInfoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -42,6 +43,19 @@ public class EmergencyInfoService {
                     return emergencyInfoRepository.save(info);
                 })
                 .orElseThrow(() -> new RuntimeException("Emergency Info not found with id " + id));
+    }
+    public EmergencyInfoDTO getEmergencyInfoByCity(String city) {
+        EmergencyInfo info = emergencyInfoRepository.findByCity(city)
+                .orElseThrow(() -> new RuntimeException("Emergency info not found for city: " + city));
+
+        return EmergencyInfoDTO.builder()
+                .id(info.getId())
+                .city(info.getCity())
+                .emergencyPhone(info.getEmergencyPhone())
+                .hospitalAddress(info.getHospitalAddress())
+                .safetyTips(info.getSafetyTips())
+                .museumContact(info.getMuseumContact())
+                .build();
     }
 
     public void deleteEmergencyInfo(Long id) {

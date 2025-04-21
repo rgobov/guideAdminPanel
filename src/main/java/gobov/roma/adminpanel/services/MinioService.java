@@ -1,4 +1,4 @@
-package gobov.roma.adminpanel.service;
+package gobov.roma.adminpanel.services;
 
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
@@ -19,6 +19,9 @@ public class MinioService {
     @Value("${minio.bucket-name}")
     private String bucketName;
 
+    @Value("${minio.url}")
+    private String endpoint;
+
     public String uploadFile(MultipartFile file, String objectName) {
         try {
             InputStream inputStream = file.getInputStream();
@@ -30,7 +33,7 @@ public class MinioService {
                             .contentType(file.getContentType())
                             .build()
             );
-            return String.format("%s/%s/%s", minioClient.getEndpoint(), bucketName, objectName);
+            return String.format("%s/%s/%s", endpoint, bucketName, objectName);
         } catch (Exception e) {
             throw new RuntimeException("Failed to upload file to MinIO", e);
         }

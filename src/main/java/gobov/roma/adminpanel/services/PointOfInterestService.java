@@ -1,8 +1,7 @@
-package gobov.roma.adminpanel.service;
-
+package gobov.roma.adminpanel.services;
 
 import gobov.roma.adminpanel.model.PointOfInterest;
-import gobov.roma.adminpanel.repository.PointOfInterestRepository;
+import gobov.roma.adminpanel.repository.point.PointOfInterestRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,11 +17,18 @@ public class PointOfInterestService {
     }
 
     public List<PointOfInterest> getNearbyPoints(double lat, double lng, double radius) {
-        // Логика для поиска ближайших точек (например, с использованием PostGIS)
         return poiRepository.findNearbyPoints(lat, lng, radius);
     }
 
     public PointOfInterest createPoint(PointOfInterest poi) {
         return poiRepository.save(poi);
+    }
+
+    public List<PointOfInterest> getPointsByRegion(String region) {
+        return poiRepository.findByRegion(region);
+    }
+
+    public List<PointOfInterest> getPointsWithinBoundingBox(double minLng, double minLat, double maxLng, double maxLat) {
+        return poiRepository.findWithinBoundingBox(minLng, minLat, maxLng, maxLat);
     }
 }

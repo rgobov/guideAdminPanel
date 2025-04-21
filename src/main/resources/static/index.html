@@ -3,18 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - Управление точками интереса и медиа</title>
+    <title>Admin Panel - Управление точками интереса и маршрутами</title>
     <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/babel-standalone@latest/babel.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Добавляем favicon, чтобы избежать запроса к /favicon.ico -->
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,AAABAAEAAQEAAAEAIAAwAAAAFgAAACgAAAABAAAAAgAAAAEAIAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAA=">
 </head>
 <body>
 <div id="root" class="min-h-screen bg-gray-100"></div>
 
 <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useRef } = React;
 
     // Форма логина
     const LoginForm = ({ onLogin }) => {
@@ -57,26 +61,224 @@
         );
     };
 
-    // Форма для создания точки интереса
-    const POIForm = ({ routes, onSave, token }) => {
+    // Компонент боковой панели с информацией о точке интереса
+    const Sidebar = ({ selectedPoi, onClose }) => {
+        if (!selectedPoi) return null;
+
+        return (
+            <div className="fixed top-0 left-0 h-full w-64 bg-white shadow-lg p-4 z-50">
+                <button onClick={onClose} className="text-red-500 mb-4">Закрыть</button>
+                <h3 className="text-lg font-bold">{selectedPoi.title}</h3>
+                <p>{selectedPoi.description || 'Описание отсутствует'}</p>
+            </div>
+        );
+    };
+
+    // Форма для создания точки интереса с картой
+    const POIForm = ({ onSave, token }) => {
         const [title, setTitle] = useState('');
         const [description, setDescription] = useState('');
-        const [routeId, setRouteId] = useState('');
         const [latitude, setLatitude] = useState('');
         const [longitude, setLongitude] = useState('');
         const [order, setOrder] = useState(1);
+        const [region, setRegion] = useState('');
+        const [regionInput, setRegionInput] = useState('');
+        const [filteredRegions, setFilteredRegions] = useState([]);
+        const [showDropdown, setShowDropdown] = useState(false);
+        const [visiblePois, setVisiblePois] = useState([]);
+        const [selectedPoi, setSelectedPoi] = useState(null);
+        const mapRef = useRef(null);
+        const markersRef = useRef([]);
+        const markerRef = useRef(null);
+
+        // Список всех регионов России (включая области, края, республики и т.д.)
+        const regions = [
+            { name: 'Адыгея', center: [44.6098, 40.1007], zoom: 10 },
+            { name: 'Алтай', center: [51.7936, 85.8523], zoom: 10 },
+            { name: 'Алтайский край', center: [53.3551, 83.7768], zoom: 10 },
+            { name: 'Амурская область', center: [50.2796, 127.5404], zoom: 10 },
+            { name: 'Архангельская область', center: [64.5400, 40.5433], zoom: 10 },
+            { name: 'Астраханская область', center: [46.3497, 48.0408], zoom: 10 },
+            { name: 'Башкортостан', center: [54.7351, 55.9579], zoom: 10 },
+            { name: 'Белгородская область', center: [50.5977, 36.5983], zoom: 10 },
+            { name: 'Брянская область', center: [53.2521, 34.3717], zoom: 10 },
+            { name: 'Бурятия', center: [51.8343, 107.5842], zoom: 10 },
+            { name: 'Владимирская область', center: [56.1365, 40.4010], zoom: 10 },
+            { name: 'Волгоградская область', center: [48.7194, 44.4169], zoom: 10 },
+            { name: 'Вологодская область', center: [59.2239, 39.8840], zoom: 10 },
+            { name: 'Воронежская область', center: [51.6720, 39.1843], zoom: 10 },
+            { name: 'Дагестан', center: [42.9830, 47.5024], zoom: 10 },
+            { name: 'Еврейская автономная область', center: [48.7928, 132.1450], zoom: 10 },
+            { name: 'Забайкальский край', center: [52.0336, 113.5010], zoom: 10 },
+            { name: 'Ивановская область', center: [56.9970, 40.9714], zoom: 10 },
+            { name: 'Ингушетия', center: [43.1669, 44.8131], zoom: 10 },
+            { name: 'Иркутская область', center: [52.2869, 104.3050], zoom: 10 },
+            { name: 'Кабардино-Балкария', center: [43.3932, 43.5627], zoom: 10 },
+            { name: 'Калининградская область', center: [54.7065, 20.5110], zoom: 10 },
+            { name: 'Калмыкия', center: [46.3083, 44.2558], zoom: 10 },
+            { name: 'Калужская область', center: [54.5293, 36.2754], zoom: 10 },
+            { name: 'Камчатский край', center: [53.0360, 158.6760], zoom: 10 },
+            { name: 'Карачаево-Черкесия', center: [44.2233, 41.7282], zoom: 10 },
+            { name: 'Карелия', center: [61.7849, 34.3469], zoom: 10 },
+            { name: 'Кемеровская область', center: [55.3551, 86.0870], zoom: 10 },
+            { name: 'Кировская область', center: [58.5966, 49.6601], zoom: 10 },
+            { name: 'Коми', center: [61.6764, 50.8365], zoom: 10 },
+            { name: 'Костромская область', center: [57.7670, 40.9269], zoom: 10 },
+            { name: 'Краснодарский край', center: [45.0355, 38.9753], zoom: 10 },
+            { name: 'Красноярский край', center: [56.0106, 92.8525], zoom: 10 },
+            { name: 'Курганская область', center: [55.4410, 65.3411], zoom: 10 },
+            { name: 'Курская область', center: [51.7308, 36.1935], zoom: 10 },
+            { name: 'Ленинградская область', center: [59.9343, 30.3351], zoom: 10 },
+            { name: 'Липецкая область', center: [52.6031, 39.5708], zoom: 10 },
+            { name: 'Магаданская область', center: [59.5638, 150.8035], zoom: 10 },
+            { name: 'Марий Эл', center: [56.6388, 48.7071], zoom: 10 },
+            { name: 'Мордовия', center: [54.2362, 45.1839], zoom: 10 },
+            { name: 'Московская область', center: [55.7512, 37.6184], zoom: 10 },
+            { name: 'Мурманская область', center: [68.9707, 33.0827], zoom: 10 },
+            { name: 'Ненецкий автономный округ', center: [67.6078, 53.0879], zoom: 10 },
+            { name: 'Нижегородская область', center: [56.3269, 44.0065], zoom: 10 },
+            { name: 'Новгородская область', center: [58.5215, 31.2710], zoom: 10 },
+            { name: 'Новосибирская область', center: [55.0084, 82.9357], zoom: 10 },
+            { name: 'Омская область', center: [54.9920, 73.3686], zoom: 10 },
+            { name: 'Оренбургская область', center: [51.7669, 55.0988], zoom: 10 },
+            { name: 'Орловская область', center: [52.9651, 36.0633], zoom: 10 },
+            { name: 'Пензенская область', center: [53.2007, 45.0183], zoom: 10 },
+            { name: 'Пермский край', center: [58.0105, 56.2502], zoom: 10 },
+            { name: 'Приморский край', center: [43.1198, 131.8824], zoom: 10 },
+            { name: 'Псковская область', center: [57.8193, 28.3496], zoom: 10 },
+            { name: 'Ростовская область', center: [47.2313, 39.7233], zoom: 10 },
+            { name: 'Рязанская область', center: [54.6295, 39.7364], zoom: 10 },
+            { name: 'Самарская область', center: [53.1950, 50.1182], zoom: 10 },
+            { name: 'Саратовская область', center: [51.5331, 46.0342], zoom: 10 },
+            { name: 'Саха (Якутия)', center: [62.0281, 129.7326], zoom: 10 },
+            { name: 'Сахалинская область', center: [46.9591, 142.7310], zoom: 10 },
+            { name: 'Свердловская область', center: [56.8519, 60.6122], zoom: 10 },
+            { name: 'Северная Осетия', center: [43.0367, 44.6678], zoom: 10 },
+            { name: 'Смоленская область', center: [54.7818, 32.0401], zoom: 10 },
+            { name: 'Ставропольский край', center: [45.0428, 41.9734], zoom: 10 },
+            { name: 'Тамбовская область', center: [52.7231, 41.4539], zoom: 10 },
+            { name: 'Татарстан', center: [55.8304, 49.0661], zoom: 10 },
+            { name: 'Тверская область', center: [56.8584, 35.9176], zoom: 10 },
+            { name: 'Томская область', center: [56.4847, 84.9482], zoom: 10 },
+            { name: 'Тульская область', center: [54.1961, 37.6180], zoom: 10 },
+            { name: 'Тыва', center: [51.7191, 94.4378], zoom: 10 },
+            { name: 'Тюменская область', center: [57.1522, 65.5272], zoom: 10 },
+            { name: 'Удмуртия', center: [56.8498, 53.2048], zoom: 10 },
+            { name: 'Ульяновская область', center: [54.3182, 48.3978], zoom: 10 },
+            { name: 'Хабаровский край', center: [48.4802, 135.0719], zoom: 10 },
+            { name: 'Хакасия', center: [53.7212, 91.4424], zoom: 10 },
+            { name: 'Ханты-Мансийский автономный округ', center: [61.0032, 69.0185], zoom: 10 },
+            { name: 'Челябинская область', center: [55.1599, 61.4026], zoom: 10 },
+            { name: 'Чечня', center: [43.3178, 45.6949], zoom: 10 },
+            { name: 'Чувашия', center: [56.1320, 47.2511], zoom: 10 },
+            { name: 'Чукотский автономный округ', center: [64.7349, 177.5100], zoom: 10 },
+            { name: 'Ямало-Ненецкий автономный округ', center: [66.5299, 66.6019], zoom: 10 },
+            { name: 'Ярославская область', center: [57.6216, 39.8978], zoom: 10 }
+        ];
+
+        // Фильтрация регионов по вводу
+        useEffect(() => {
+            if (regionInput) {
+                const filtered = regions.filter(r =>
+                    r.name.toLowerCase().startsWith(regionInput.toLowerCase())
+                );
+                setFilteredRegions(filtered);
+                setShowDropdown(true);
+            } else {
+                setFilteredRegions([]);
+                setShowDropdown(false);
+            }
+        }, [regionInput]);
+
+        // Инициализация карты (Калининградская область по умолчанию)
+        useEffect(() => {
+            if (!mapRef.current) {
+                mapRef.current = L.map('map', {
+                    center: [54.7065, 20.5110], // Центр Калининградской области
+                    zoom: 10,
+                    zoomControl: true
+                });
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                }).addTo(mapRef.current);
+
+                // Обработчик клика по карте для создания новой точки
+                mapRef.current.on('click', (e) => {
+                    const { lat, lng } = e.latlng;
+                    setLatitude(lat);
+                    setLongitude(lng);
+
+                    if (markerRef.current) {
+                        mapRef.current.removeLayer(markerRef.current);
+                    }
+                    markerRef.current = L.marker([lat, lng]).addTo(mapRef.current);
+                });
+
+                // Обработчик изменения видимой области карты
+                mapRef.current.on('moveend zoomend', () => {
+                    if (!region) return;
+                    const bounds = mapRef.current.getBounds();
+                    const minLng = bounds.getWest();
+                    const minLat = bounds.getSouth();
+                    const maxLng = bounds.getEast();
+                    const maxLat = bounds.getNorth();
+
+                    axios.get('/api/poi/within', {
+                        params: { minLng, minLat, maxLng, maxLat },
+                        headers: { Authorization: `Bearer ${token}` }
+                    }).then(response => {
+                        const pois = response.data.filter(poi => poi.region === region);
+                        setVisiblePois(pois);
+
+                        // Удаляем старые маркеры
+                        markersRef.current.forEach(marker => mapRef.current.removeLayer(marker));
+                        markersRef.current = [];
+
+                        // Добавляем новые маркеры
+                        pois.forEach(poi => {
+                            if (poi.location && poi.location.coordinates) { // Заменено: убрана опциональная цепочка
+                                // Дополнительная проверка, что coordinates - это массив и содержит 2 элемента
+                                if (Array.isArray(poi.location.coordinates) && poi.location.coordinates.length >= 2) {
+                                    const marker = L.marker([poi.location.coordinates[1], poi.location.coordinates[0]])
+                                        .addTo(mapRef.current)
+                                        .bindPopup(poi.title);
+                                    marker.on('click', () => setSelectedPoi(poi));
+                                    markersRef.current.push(marker);
+                                }
+                            }
+                        });
+                    }).catch(error => console.error('Ошибка загрузки видимых POI:', error));
+                });
+            }
+        }, [token, region]);
+
+        // Обновление центра карты при выборе региона
+        useEffect(() => {
+            if (region && mapRef.current) {
+                const selectedRegion = regions.find(r => r.name === region);
+                if (selectedRegion) {
+                    mapRef.current.setView(selectedRegion.center, selectedRegion.zoom);
+                }
+            }
+        }, [region]);
+
+        const handleRegionSelect = (selectedRegion) => {
+            setRegion(selectedRegion);
+            setRegionInput(selectedRegion);
+            setShowDropdown(false);
+        };
 
         const handleSubmit = () => {
-            if (!title || !routeId || !latitude || !longitude) {
-                alert('Пожалуйста, заполните все обязательные поля');
+            if (!title || !latitude || !longitude || !region) {
+                alert('Пожалуйста, заполните все обязательные поля, включая регион');
                 return;
             }
             const poiData = {
                 title,
                 description,
-                route: { id: parseInt(routeId) },
                 location: { type: 'Point', coordinates: [parseFloat(longitude), parseFloat(latitude)] },
-                order
+                order,
+                region
             };
             axios.post('/api/poi', poiData, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -86,17 +288,160 @@
                     onSave();
                     setTitle('');
                     setDescription('');
-                    setRouteId('');
                     setLatitude('');
                     setLongitude('');
                     setOrder(1);
+                    setRegion('');
+                    setRegionInput('');
+                    if (markerRef.current) {
+                        mapRef.current.removeLayer(markerRef.current);
+                        markerRef.current = null;
+                    }
                 })
                 .catch(error => console.error('Ошибка при создании точки интереса:', error));
         };
 
         return (
-            <div className="p-4 bg-white shadow-md rounded-lg mb-6">
+            <div className="p-4 bg-white shadow-md rounded-lg mb-6 relative">
                 <h2 className="text-xl font-bold mb-4">Создать точку интереса</h2>
+                <div className="relative mb-2">
+                    <input
+                        type="text"
+                        placeholder="Введите регион"
+                        value={regionInput}
+                        onChange={(e) => setRegionInput(e.target.value)}
+                        className="w-full p-2 border rounded"
+                    />
+                    {showDropdown && filteredRegions.length > 0 && (
+                        <div className="absolute w-full bg-white border rounded max-h-48 overflow-y-auto z-10">
+                            {filteredRegions.map(r => (
+                                <div
+                                    key={r.name}
+                                    className="p-2 hover:bg-gray-100 cursor-pointer"
+                                    onClick={() => handleRegionSelect(r.name)}
+                                >
+                                    {r.name}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <div id="map" style={{ height: '400px', marginBottom: '1rem' }}></div>
+                <div className="flex">
+                    <div className="w-1/3 pr-4">
+                        <h3 className="text-lg font-semibold mb-2">Точки в видимой области</h3>
+                        <div className="max-h-48 overflow-y-auto border rounded p-2">
+                            {visiblePois.map(poi => (
+                                <div
+                                    key={poi.id}
+                                    className="p-2 hover:bg-gray-100 cursor-pointer"
+                                    onClick={() => setSelectedPoi(poi)}
+                                >
+                                    {poi.title}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="w-2/3">
+                        <input
+                            type="text"
+                            placeholder="Название"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            className="w-full p-2 mb-2 border rounded"
+                        />
+                        <textarea
+                            placeholder="Описание"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            className="w-full p-2 mb-2 border rounded"
+                        />
+                        <input
+                            type="number"
+                            placeholder="Широта"
+                            value={latitude}
+                            onChange={(e) => setLatitude(e.target.value)}
+                            className="w-full p-2 mb-2 border rounded"
+                        />
+                        <input
+                            type="number"
+                            placeholder="Долгота"
+                            value={longitude}
+                            onChange={(e) => setLongitude(e.target.value)}
+                            className="w-full p-2 mb-2 border rounded"
+                        />
+                        <input
+                            type="number"
+                            placeholder="Порядок (опционально)"
+                            value={order}
+                            onChange={(e) => setOrder(parseInt(e.target.value))}
+                            className="w-full p-2 mb-2 border rounded"
+                        />
+                        <button
+                            onClick={handleSubmit}
+                            className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+                        >
+                            Сохранить
+                        </button>
+                    </div>
+                </div>
+                <Sidebar selectedPoi={selectedPoi} onClose={() => setSelectedPoi(null)} />
+            </div>
+        );
+    };
+
+    // Форма для создания маршрута (без изменений)
+    const RouteForm = ({ pois, onSave, token }) => {
+        const [title, setTitle] = useState('');
+        const [description, setDescription] = useState('');
+        const [city, setCity] = useState('');
+        const [duration, setDuration] = useState('');
+        const [distance, setDistance] = useState('');
+        const [tourFormat, setTourFormat] = useState('SELF_GUIDED');
+        const [selectedPoints, setSelectedPoints] = useState([]);
+
+        const handlePointSelection = (poiId) => {
+            if (selectedPoints.includes(poiId)) {
+                setSelectedPoints(selectedPoints.filter(id => id !== poiId));
+            } else {
+                setSelectedPoints([...selectedPoints, poiId]);
+            }
+        };
+
+        const handleSubmit = () => {
+            if (!title || !tourFormat || selectedPoints.length === 0) {
+                alert('Пожалуйста, заполните все обязательные поля и выберите хотя бы одну точку интереса');
+                return;
+            }
+            const routeData = {
+                title,
+                description,
+                city,
+                duration: duration ? parseInt(duration) : null,
+                distance: distance ? parseFloat(distance) : null,
+                tourFormat,
+                pointIds: selectedPoints
+            };
+            axios.post('/api/routes', routeData, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+                .then(response => {
+                    alert('Маршрут успешно создан!');
+                    onSave();
+                    setTitle('');
+                    setDescription('');
+                    setCity('');
+                    setDuration('');
+                    setDistance('');
+                    setTourFormat('SELF_GUIDED');
+                    setSelectedPoints([]);
+                })
+                .catch(error => console.error('Ошибка при создании маршрута:', error));
+        };
+
+        return (
+            <div className="p-4 bg-white shadow-md rounded-lg mb-6">
+                <h2 className="text-xl font-bold mb-4">Создать маршрут</h2>
                 <input
                     type="text"
                     placeholder="Название"
@@ -110,37 +455,49 @@
                     onChange={(e) => setDescription(e.target.value)}
                     className="w-full p-2 mb-2 border rounded"
                 />
+                <input
+                    type="text"
+                    placeholder="Город"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="w-full p-2 mb-2 border rounded"
+                />
+                <input
+                    type="number"
+                    placeholder="Длительность (минуты)"
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                    className="w-full p-2 mb-2 border rounded"
+                />
+                <input
+                    type="number"
+                    placeholder="Расстояние (км)"
+                    value={distance}
+                    onChange={(e) => setDistance(e.target.value)}
+                    className="w-full p-2 mb-2 border rounded"
+                />
                 <select
-                    value={routeId}
-                    onChange={(e) => setRouteId(e.target.value)}
+                    value={tourFormat}
+                    onChange={(e) => setTourFormat(e.target.value)}
                     className="w-full p-2 mb-2 border rounded"
                 >
-                    <option value="">Выберите маршрут</option>
-                    {routes.map(route => (
-                        <option key={route.id} value={route.id}>{route.title}</option>
-                    ))}
+                    <option value="SELF_GUIDED">Самостоятельный тур</option>
+                    <option value="GUIDED">Тур с гидом</option>
                 </select>
-                <input
-                    type="number"
-                    placeholder="Широта"
-                    value={latitude}
-                    onChange={(e) => setLatitude(e.target.value)}
-                    className="w-full p-2 mb-2 border rounded"
-                />
-                <input
-                    type="number"
-                    placeholder="Долгота"
-                    value={longitude}
-                    onChange={(e) => setLongitude(e.target.value)}
-                    className="w-full p-2 mb-2 border rounded"
-                />
-                <input
-                    type="number"
-                    placeholder="Порядок в маршруте"
-                    value={order}
-                    onChange={(e) => setOrder(parseInt(e.target.value))}
-                    className="w-full p-2 mb-2 border rounded"
-                />
+                <h3 className="text-lg font-semibold mb-2">Выберите точки интереса</h3>
+                <div className="max-h-48 overflow-y-auto border rounded p-2 mb-2">
+                    {pois.map(poi => (
+                        <div key={poi.id} className="flex items-center">
+                            <input
+                                type="checkbox"
+                                checked={selectedPoints.includes(poi.id)}
+                                onChange={() => handlePointSelection(poi.id)}
+                                className="mr-2"
+                            />
+                            <span>{poi.title}</span>
+                        </div>
+                    ))}
+                </div>
                 <button
                     onClick={handleSubmit}
                     className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
@@ -151,7 +508,7 @@
         );
     };
 
-    // Форма для загрузки медиафайла
+    // Форма для загрузки медиафайла (без изменений)
     const MediaUploadForm = ({ pois, onSave, token }) => {
         const [file, setFile] = useState(null);
         const [poiId, setPoiId] = useState('');
@@ -227,17 +584,10 @@
     // Главный компонент приложения
     const App = () => {
         const [token, setToken] = useState(localStorage.getItem('token') || null);
-        const [routes, setRoutes] = useState([]);
         const [pois, setPois] = useState([]);
 
         useEffect(() => {
             if (token) {
-                axios.get('/api/routes', {
-                    headers: { Authorization: `Bearer ${token}` }
-                })
-                    .then(response => setRoutes(response.data))
-                    .catch(error => console.error('Ошибка при загрузке маршрутов:', error));
-
                 axios.get('/api/poi', {
                     headers: { Authorization: `Bearer ${token}` }
                 })
@@ -248,11 +598,6 @@
 
         const refreshData = () => {
             if (token) {
-                axios.get('/api/routes', {
-                    headers: { Authorization: `Bearer ${token}` }
-                })
-                    .then(response => setRoutes(response.data));
-
                 axios.get('/api/poi', {
                     headers: { Authorization: `Bearer ${token}` }
                 })
@@ -281,15 +626,26 @@
                 >
                     Выйти
                 </button>
-                <POIForm routes={routes} onSave={refreshData} token={token} />
+                <POIForm onSave={refreshData} token={token} />
+                <RouteForm pois={pois} onSave={refreshData} token={token} />
                 <MediaUploadForm pois={pois} onSave={refreshData} token={token} />
             </div>
         );
     };
 
-    // Рендеринг приложения
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    // Рендеринг приложения с обработкой ошибок
+    try {
+        const rootElement = document.getElementById('root');
+        if (!rootElement) {
+            console.error('Root element not found');
+            throw new Error('Root element not found');
+        }
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+        console.log('React app rendered successfully');
+    } catch (error) {
+        console.error('Failed to render React app:', error);
+    }
 </script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 package gobov.roma.adminpanel.controllers;
 
 import gobov.roma.adminpanel.dto.AdminRegistrationDTO;
-import gobov.roma.adminpanel.model.Admin;
+import gobov.roma.adminpanel.model.auth.Admin;
 import gobov.roma.adminpanel.security.JwtUtil;
 import gobov.roma.adminpanel.services.AdminService;
 import jakarta.validation.Valid;
