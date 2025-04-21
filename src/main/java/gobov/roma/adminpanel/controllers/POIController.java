@@ -1,9 +1,13 @@
 package gobov.roma.adminpanel.controllers;
 
+import gobov.roma.adminpanel.dto.PointOfInterestDTO;
 import gobov.roma.adminpanel.model.PointOfInterest;
 import gobov.roma.adminpanel.services.PointOfInterestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Point;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +19,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class POIController {
     private final PointOfInterestService poiService;
+    private final GeometryFactory geometryFactory = new GeometryFactory(); // Для создания объекта Point
 
     @GetMapping
     public ResponseEntity<List<PointOfInterest>> getAllPOIs() {
@@ -32,7 +37,32 @@ public class POIController {
     }
 
     @PostMapping
-    public ResponseEntity<PointOfInterest> createPOI(@Valid @RequestBody PointOfInterest poi) {
+    public ResponseEntity<PointOfInterest> createPOI(@Valid @RequestBody PointOfInterestDTO poiDTO) {
+        // Преобразование DTO в сущность
+        PointOfInterest poi = new PointOfInterest();
+        poi.setTitle(poiDTO.getTitle());
+        poi.setDescription(poiDTO.getDescription());
+        poi.setRegion(poiDTO.getRegion());
+        poi.setAudioUrl(poiDTO.getAudioUrl());
+        poi.setImageUrl(poiDTO.getImageUrl());
+        poi.setOrder(poiDTO.getOrder());
+        poi.setBeaconId(poiDTO.getBeaconId());
+        poi.setArData(poiDTO.getArData());
+        poi.setIndoorCoordinates(poiDTO.getIndoorCoordinates());
+        poi.setArPrecision(poiDTO.getArPrecision());
+
+        // Преобразование LocationDTO в Point
+        PointOfInterestDTO.LocationDTO locationDTO = poiDTO.getLocation();
+        if (!"Point".equals(locationDTO.getType()) || locationDTO.getCoordinates().length != 2) {
+            throw new IllegalArgumentException("Неверный формат координат. Ожидается тип 'Point' и массив [longitude, latitude].");
+        }
+        double longitude = locationDTO.getCoordinates()[0];
+        double latitude = locationDTO.getCoordinates()[1];
+        Point point = geometryFactory.createPoint(new Coordinate(longitude, latitude));
+        point.setSRID(4326); // Устанавливаем SRID для PostGIS
+        poi.setLocation(point);
+
+        // Сохранение сущности
         PointOfInterest createdPOI = poiService.createPoint(poi);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdPOI);
     }

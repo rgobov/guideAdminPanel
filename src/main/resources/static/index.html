@@ -87,6 +87,7 @@
         const [showDropdown, setShowDropdown] = useState(false);
         const [visiblePois, setVisiblePois] = useState([]);
         const [selectedPoi, setSelectedPoi] = useState(null);
+        const [userLocation, setUserLocation] = useState(null);
         const mapRef = useRef(null);
         const markersRef = useRef([]);
         const markerRef = useRef(null);
@@ -157,7 +158,7 @@
             { name: 'Смоленская область', center: [54.7818, 32.0401], zoom: 10 },
             { name: 'Ставропольский край', center: [45.0428, 41.9734], zoom: 10 },
             { name: 'Тамбовская область', center: [52.7231, 41.4539], zoom: 10 },
-            { name: 'Татарстан', center: [55.8304, 49.0661], zoom: 10 },
+            { name: 'Татарстан', center: [55.8304, 49.0661], zoom: 10 }, // Исправлено: удалён smuggle
             { name: 'Тверская область', center: [56.8584, 35.9176], zoom: 10 },
             { name: 'Томская область', center: [56.4847, 84.9482], zoom: 10 },
             { name: 'Тульская область', center: [54.1961, 37.6180], zoom: 10 },
@@ -176,11 +177,73 @@
             { name: 'Ярославская область', center: [57.6216, 39.8978], zoom: 10 }
         ];
 
-        // Фильтрация регионов по вводу
+        // Функция для вычисления расстояния между двумя точками (формула Хаверсина)
+        const haversineDistance = (lat1, lon1, lat2, lon2) => {
+            const R = 6371; // Радиус Земли в километрах
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c; // Расстояние в километрах
+        };
+
+        // Получение местоположения пользователя
         useEffect(() => {
-            if (regionInput) {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const { latitude, longitude } = position.coords;
+                        console.log('User location:', latitude, longitude);
+                        setUserLocation([latitude, longitude]);
+
+                        // Найти ближайший регион
+                        let nearestRegion = null;
+                        let minDistance = Infinity;
+
+                        regions.forEach(r => {
+                            const distance = haversineDistance(
+                                latitude,
+                                longitude,
+                                r.center[0],
+                                r.center[1]
+                            );
+                            if (distance < minDistance) {
+                                minDistance = distance;
+                                nearestRegion = r;
+                            }
+                        });
+
+                        if (nearestRegion) {
+                            console.log('Nearest region:', nearestRegion.name);
+                            setRegion(nearestRegion.name);
+                            setRegionInput(nearestRegion.name);
+                        }
+                    },
+                    (error) => {
+                        console.error('Error getting user location:', error);
+                        setUserLocation([54.7065, 20.5110]);
+                        setRegion('Калининградская область');
+                        setRegionInput('Калининградская область');
+                    }
+                );
+            } else {
+                console.error('Geolocation is not supported by this browser.');
+                setUserLocation([54.7065, 20.5110]);
+                setRegion('Калининградская область');
+                setRegionInput('Калининградская область');
+            }
+        }, []);
+
+        // Обработчик изменения ввода региона
+        const handleRegionInputChange = (e) => {
+            const value = e.target.value;
+            setRegionInput(value);
+
+            if (value) {
                 const filtered = regions.filter(r =>
-                    r.name.toLowerCase().startsWith(regionInput.toLowerCase())
+                    r.name.toLowerCase().includes(value.toLowerCase())
                 );
                 setFilteredRegions(filtered);
                 setShowDropdown(true);
@@ -188,21 +251,29 @@
                 setFilteredRegions([]);
                 setShowDropdown(false);
             }
-        }, [regionInput]);
+        };
 
-        // Инициализация карты (Калининградская область по умолчанию)
+        // Инициализация карты
         useEffect(() => {
             if (!mapRef.current) {
+                const initialCenter = userLocation || [54.7065, 20.5110];
+                const initialZoom = userLocation ? 13 : 10;
                 mapRef.current = L.map('map', {
-                    center: [54.7065, 20.5110], // Центр Калининградской области
-                    zoom: 10,
+                    center: initialCenter,
+                    zoom: initialZoom,
                     zoomControl: true
                 });
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 }).addTo(mapRef.current);
 
-                // Обработчик клика по карте для создания новой точки
+                if (userLocation) {
+                    L.marker(userLocation)
+                        .addTo(mapRef.current)
+                        .bindPopup('Вы здесь')
+                        .openPopup();
+                }
+
                 mapRef.current.on('click', (e) => {
                     const { lat, lng } = e.latlng;
                     setLatitude(lat);
@@ -214,7 +285,6 @@
                     markerRef.current = L.marker([lat, lng]).addTo(mapRef.current);
                 });
 
-                // Обработчик изменения видимой области карты
                 mapRef.current.on('moveend zoomend', () => {
                     if (!region) return;
                     const bounds = mapRef.current.getBounds();
@@ -230,14 +300,11 @@
                         const pois = response.data.filter(poi => poi.region === region);
                         setVisiblePois(pois);
 
-                        // Удаляем старые маркеры
                         markersRef.current.forEach(marker => mapRef.current.removeLayer(marker));
                         markersRef.current = [];
 
-                        // Добавляем новые маркеры
                         pois.forEach(poi => {
-                            if (poi.location && poi.location.coordinates) { // Заменено: убрана опциональная цепочка
-                                // Дополнительная проверка, что coordinates - это массив и содержит 2 элемента
+                            if (poi.location && poi.location.coordinates) {
                                 if (Array.isArray(poi.location.coordinates) && poi.location.coordinates.length >= 2) {
                                     const marker = L.marker([poi.location.coordinates[1], poi.location.coordinates[0]])
                                         .addTo(mapRef.current)
@@ -250,11 +317,11 @@
                     }).catch(error => console.error('Ошибка загрузки видимых POI:', error));
                 });
             }
-        }, [token, region]);
+        }, [token, region, userLocation]);
 
         // Обновление центра карты при выборе региона
         useEffect(() => {
-            if (region && mapRef.current) {
+            if (region && mapRef.current && !userLocation) {
                 const selectedRegion = regions.find(r => r.name === region);
                 if (selectedRegion) {
                     mapRef.current.setView(selectedRegion.center, selectedRegion.zoom);
@@ -263,9 +330,16 @@
         }, [region]);
 
         const handleRegionSelect = (selectedRegion) => {
+            console.log('Selected region:', selectedRegion);
             setRegion(selectedRegion);
             setRegionInput(selectedRegion);
             setShowDropdown(false);
+
+            // Центрируем карту на выбранном регионе
+            const regionData = regions.find(r => r.name === selectedRegion);
+            if (regionData && mapRef.current) {
+                mapRef.current.setView(regionData.center, regionData.zoom);
+            }
         };
 
         const handleSubmit = () => {
@@ -309,11 +383,11 @@
                         type="text"
                         placeholder="Введите регион"
                         value={regionInput}
-                        onChange={(e) => setRegionInput(e.target.value)}
+                        onChange={handleRegionInputChange}
                         className="w-full p-2 border rounded"
                     />
                     {showDropdown && filteredRegions.length > 0 && (
-                        <div className="absolute w-full bg-white border rounded max-h-48 overflow-y-auto z-10">
+                        <div className="absolute z-50 w-full bg-white border border-gray-300 rounded shadow-lg max-h-60 overflow-auto">
                             {filteredRegions.map(r => (
                                 <div
                                     key={r.name}
